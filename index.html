@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Sender Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: auto;
+      padding: 1rem;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin-top: 1em;
+      font-weight: bold;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.3rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      margin-top: 1.5rem;
+      padding: 0.7rem 1.5rem;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>Email Sender Tool</h1>
+  <form action="https://your-render-backend.onrender.com/send" method="POST" enctype="multipart/form-data">
+    <label for="email">Your Gmail Address:</label>
+    <input type="email" name="email" required>
+
+    <label for="app_password">App Password:</label>
+    <input type="password" name="app_password" required>
+
+    <label for="subject">Email Subject:</label>
+    <input type="text" name="subject" required>
+
+    <label for="body">Email Body (use {name} to personalize):</label>
+    <textarea name="body" rows="10" required></textarea>
+
+    <label for="recipients_csv">Upload Recipients CSV:</label>
+    <input type="file" name="recipients_csv" accept=".csv" required>
+
+    <button type="submit">Send Emails</button>
+  </form>
+</body>
+</html>
