@@ -1,65 +1,443 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Email Sender Tool</title>
+  <meta charset="UTF-8" />
+  <title>Creative Spring‑Mass Unicycle</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: auto;
-      padding: 1rem;
-      background-color: #f9f9f9;
+    /* GRID LAYOUT */
+    html, body {
+      height: 100%;
+      margin: 0;
     }
-    h1 {
+    .grid-container {
+      display: grid;
+      grid-template-areas:
+        "header header"
+        "simulation controls"
+        "footer footer";
+      grid-template-rows: 60px 1fr 40px;
+      grid-template-columns: 2fr 1fr;
+      height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom, #e0f7fa, #80deea);
+    }
+    .header {
+      grid-area: header;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(45deg, #ff8a80, #ff80ab);
+      color: #fff;
+    }
+    .simulation {
+      grid-area: simulation;
+      position: relative;
+    }
+    .controls {
+      grid-area: controls;
+      overflow-y: auto;
+      padding: 10px;
+      background: rgba(255,255,255,0.9);
+    }
+    .footer {
+      grid-area: footer;
       text-align: center;
+      background: linear-gradient(45deg, #80d8ff, #40c4ff);
+      color: #fff;
+      line-height: 40px;
     }
+    /* CANVAS & INFO TEXT */
+    #simCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .info-text {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    /* CARDS */
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .card h2 {
+      margin-top: 0;
+    }
+    /* SLIDERS */
     label {
       display: block;
-      margin-top: 1em;
-      font-weight: bold;
+      margin-top: 8px;
+      font-weight: 500;
     }
-    input, textarea {
+    input[type=range] {
       width: 100%;
-      padding: 0.5rem;
-      margin-top: 0.3rem;
-      border-radius: 4px;
-      border: 1px solid #ccc;
+      margin-top: 4px;
     }
-    button {
-      margin-top: 1.5rem;
-      padding: 0.7rem 1.5rem;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #45a049;
+    /* CHARTS: Increase canvas size for better visibility */
+    .card canvas {
+      width: 100% !important;
+      height: 200px !important;
+      margin-top: 8px;
     }
   </style>
+  <!-- Chart.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h1>Email Sender Tool</h1>
-  <form action="https://your-render-backend.onrender.com/send" method="POST" enctype="multipart/form-data">
-    <label for="email">Your Gmail Address:</label>
-    <input type="email" name="email" required>
+  <div class="grid-container">
+    <header class="header">
+      <h1>🚲 Creative Spring‑Mass Unicycle</h1>
+    </header>
+    <section class="simulation">
+      <canvas id="simCanvas"></canvas>
+      <div class="info-text" id="infoText"></div>
+    </section>
+    <aside class="controls">
+      <div class="card">
+        <h2>Parameters</h2>
+        <label>k: <span id="kVal">500.0</span></label>
+        <input type="range" id="kRange" min="0" max="2000" step="1" value="500" />
+        <label>c: <span id="cVal">30.0</span></label>
+        <input type="range" id="cRange" min="0" max="100" step="0.1" value="30" />
+        <label>mass: <span id="mVal">75.0</span></label>
+        <input type="range" id="mRange" min="1" max="200" step="0.1" value="75" />
+      </div>
+      <div class="card">
+        <h2>Real‑Time Plots</h2>
+        <canvas id="dispChart"></canvas>
+        <canvas id="forceChart"></canvas>
+      </div>
+    </aside>
+    <footer class="footer">
+      <p>Use ← → to steer. Tweak sliders. Enjoy the ride!</p>
+    </footer>
+  </div>
 
-    <label for="app_password">App Password:</label>
-    <input type="password" name="app_password" required>
+  <script>
+    // --- Canvas Setup ---
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    function resize() {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
 
-    <label for="subject">Email Subject:</label>
-    <input type="text" name="subject" required>
+    // --- Terrain Generation ---
+    const TERRAIN_LENGTH = 20000;
+    const terrain = new Float32Array(TERRAIN_LENGTH);
+    for (let i = 0; i < TERRAIN_LENGTH; i++) {
+      if (i < 300) {
+        // Flat road
+        terrain[i] = 350;
+      } else if (i < 600) {
+        // Speed breakers: periodic bumps
+        terrain[i] = 350 + 40 * Math.abs(Math.sin((i - 300) * (Math.PI / 50)));
+      } else {
+        // Irregular road: noisy sine wave (similar to original)
+        terrain[i] = 350 + 50 * Math.sin(i * 0.005) + 10 * (Math.random() - 0.5);
+      }
+    }
+    function road_height(xv) {
+      let idx = Math.floor(xv);
+      if (idx < 0) return terrain[0];
+      if (idx >= TERRAIN_LENGTH) return terrain[TERRAIN_LENGTH - 1];
+      return terrain[idx];
+    }
 
-    <label for="body">Email Body (use {name} to personalize):</label>
-    <textarea name="body" rows="10" required></textarea>
+    // --- Physics Parameters (keep math unchanged) ---
+    let mass = 75.0, k = 500.0, c = 30.0, g = 9.81, rest_length = 100;
+    const Kp = 80, Ki = 1, Kd = 15;
+    let error_int = 0, prev_error = 0;
 
-    <label for="recipients_csv">Upload Recipients CSV:</label>
-    <input type="file" name="recipients_csv" accept=".csv" required>
+    // --- State & Input ---
+    let x = 0, y = 350, vx = 0, vy = 0, wheel_angle = 0, t_global = 0;
+    let left = false, right = false;
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') left = true;
+      if (e.key === 'ArrowRight') right = true;
+    });
+    window.addEventListener('keyup', e => {
+      if (e.key === 'ArrowLeft') left = false;
+      if (e.key === 'ArrowRight') right = false;
+    });
 
-    <button type="submit">Send Emails</button>
-  </form>
+    // --- UI Bindings ---
+    ['k', 'c', 'm'].forEach(key => {
+      const range = document.getElementById(key + 'Range');
+      const span = document.getElementById(key + 'Val');
+      range.addEventListener('input', () => {
+        if (key === 'k') k = +range.value;
+        if (key === 'c') c = +range.value;
+        if (key === 'm') mass = +range.value;
+        span.textContent = (+range.value).toFixed(1);
+      });
+    });
+
+    // --- Chart.js Setup ---
+    const timeWindow = 100;
+    let t = 0;
+    const dispCtx = document.getElementById('dispChart').getContext('2d');
+    const forceCtx = document.getElementById('forceChart').getContext('2d');
+
+    const dispChart = new Chart(dispCtx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Disp (m)',
+          data: [],
+          borderColor: '#0288d1',
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: {
+            display: true,
+            title: { display: true, text: 'Time (s)' },
+            grid: { display: true }
+          },
+          y: {
+            display: true,
+            title: { display: true, text: 'Displacement (m)' },
+            grid: { display: true }
+          }
+        },
+        plugins: {
+          legend: { display: true, position: 'top' }
+        }
+      }
+    });
+
+    const forceChart = new Chart(forceCtx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Force (N)',
+          data: [],
+          borderColor: '#d32f2f',
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: {
+            display: true,
+            title: { display: true, text: 'Time (s)' },
+            grid: { display: true }
+          },
+          y: {
+            display: true,
+            title: { display: true, text: 'Force (N)' },
+            grid: { display: true }
+          }
+        },
+        plugins: {
+          legend: { display: true, position: 'top' }
+        }
+      }
+    });
+
+    // --- Creative Touch: Trail Effect ---
+    const trailPoints = [];
+
+    // --- Main Loop ---
+    let last = performance.now();
+    function loop(now) {
+      const dt = (now - last) / 1000;
+      last = now;
+      t_global += dt;
+      t += dt;
+
+      // --- Update Steering ---
+      if (left) vx -= 50 * dt;
+      if (right) vx += 50 * dt;
+
+      // --- Determine Wheel Position ---
+      const h = road_height(x);
+      const wheel_y = h - 20;
+
+      // --- Forces Calculation ---
+      const spring_f = -k * ((y - wheel_y) - rest_length);
+      const damp_f   = -c * vy;
+      const net_f    = spring_f + damp_f - mass * g;
+      const ay       = net_f / mass;
+
+      // --- PID Controller for display ---
+      const seat_angle = Math.atan2((y - wheel_y) - rest_length, 0);
+      const err = -seat_angle;
+      error_int += err * dt;
+      const err_der = (err - prev_error) / dt;
+      const torque = Kp * err + Ki * error_int + Kd * err_der;
+      prev_error = err;
+
+      // --- Integrate Motion ---
+      vy += ay * dt;
+      y  += vy * dt * 50;
+      x  += vx * dt * 50;
+      vx *= 0.99;
+      if (Math.abs(vx) < 1e-3) vx = 0;
+      wheel_angle += (vx * dt * 50) / 20;
+
+      // --- Draw Creative Background ---
+      // Create a sky-inspired gradient
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, '#87CEEB'); // sky blue
+      gradient.addColorStop(1, '#f3e5ab'); // soft cream
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // --- Draw Terrain ---
+      ctx.lineWidth = 2;
+      for (let i = 0; i < canvas.width; i += 4) {
+        const wx = x - canvas.width / 2 + i;
+        ctx.strokeStyle = '#555';
+        ctx.beginPath();
+        ctx.moveTo(i, road_height(wx));
+        ctx.lineTo(i, canvas.height);
+        ctx.stroke();
+      }
+
+      // --- Draw Trail (Creative Touch) ---
+      // Store current wheel center and draw a fading trail.
+      const cx = canvas.width / 2;
+      const cy = wheel_y;
+      trailPoints.push({ x: cx, y: cy });
+      if (trailPoints.length > 50) trailPoints.shift();
+      ctx.save();
+      ctx.lineWidth = 2;
+      for (let i = 0; i < trailPoints.length - 1; i++) {
+        ctx.globalAlpha = (i + 1) / trailPoints.length * 0.7; // fade older points
+        ctx.strokeStyle = '#ff5722';
+        ctx.beginPath();
+        ctx.moveTo(trailPoints[i].x, trailPoints[i].y);
+        ctx.lineTo(trailPoints[i + 1].x, trailPoints[i + 1].y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // --- Draw Wheel & Spokes ---
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 20, 0, 2 * Math.PI);
+      ctx.stroke();
+      for (let s = 0; s < 6; s++) {
+        const ang = wheel_angle + s * (2 * Math.PI / 6);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + 20 * Math.cos(ang), cy + 20 * Math.sin(ang));
+        ctx.stroke();
+      }
+
+      // --- Draw Fork Legs ---
+      const forkW = 20, mount = 20;
+      const leftX = cx - forkW / 2, rightX = cx + forkW / 2, topY = cy - mount;
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 4;
+      [leftX, rightX].forEach(px => {
+        ctx.beginPath();
+        ctx.moveTo(px, cy);
+        ctx.lineTo(px, topY);
+        ctx.stroke();
+      });
+
+      // --- Draw Spring Coil ---
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i <= 20; i++) {
+        const t1 = i / 20;
+        const yPos = topY - t1 * rest_length;
+        const xBase = leftX + t1 * (rightX - leftX);
+        const xOff = (i % 2 ? 8 : -8);
+        const px = xBase + xOff;
+        if (i === 0) ctx.moveTo(px, yPos);
+        else ctx.lineTo(px, yPos);
+      }
+      ctx.stroke();
+
+      // --- Draw Seat Post & Seat ---
+      const springTop = topY - rest_length;
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(cx, springTop);
+      ctx.lineTo(cx, springTop - 20);
+      ctx.stroke();
+      ctx.fillStyle = '#1976d2';
+      ctx.fillRect(cx - 25, springTop - 30, 50, 10);
+
+      // --- Draw Rider with Creative Head ---
+      const headX = cx, headY = springTop - 40;
+      // Use a radial gradient for the head
+      let headGradient = ctx.createRadialGradient(headX, headY, 2, headX, headY, 8);
+      headGradient.addColorStop(0, '#ffeb3b');
+      headGradient.addColorStop(1, '#f57f17');
+      ctx.fillStyle = headGradient;
+      ctx.beginPath();
+      ctx.arc(headX, headY, 8, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(headX, headY + 8);
+      ctx.lineTo(headX, springTop - 20);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(headX, springTop - 20);
+      ctx.lineTo(headX - 10, springTop + 5);
+      ctx.moveTo(headX, springTop - 20);
+      ctx.lineTo(headX + 10, springTop + 5);
+      ctx.stroke();
+
+      // --- Update Charts ---
+      const disp = (y - wheel_y) / 100;
+      [
+        [dispChart, disp],
+        [forceChart, spring_f]
+      ].forEach(([chart, val]) => {
+        chart.data.labels.push(t.toFixed(2));
+        chart.data.datasets[0].data.push(val.toFixed(2));
+        if (chart.data.labels.length > timeWindow) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+        }
+        chart.update('none');
+      });
+
+      // --- Update Info Text ---
+      document.getElementById('infoText').innerHTML = `
+        t = ${t_global.toFixed(1)}s<br>
+        x = ${(x / 50).toFixed(1)}m, disp = ${((y - wheel_y) / 100).toFixed(2)}m<br>
+        spring F = ${spring_f.toFixed(1)}N, damper F = ${damp_f.toFixed(1)}N<br>
+        PID T = ${torque.toFixed(1)}Nm<br>
+        <em>Ride on, creative rider!</em>
+      `;
+
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
 </body>
 </html>
